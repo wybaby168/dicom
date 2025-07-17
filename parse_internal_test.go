@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/suyashkumar/dicom/pkg/tag"
+	"github.com/wybaby168/dicom/pkg/tag"
 )
 
 // parse_internal_test.go holds tests that must exist in the dicom package (as

@@ -29,12 +29,12 @@ import (
 	"io"
 	"os"
 
-	"github.com/suyashkumar/dicom/pkg/charset"
-	"github.com/suyashkumar/dicom/pkg/debug"
-	"github.com/suyashkumar/dicom/pkg/dicomio"
-	"github.com/suyashkumar/dicom/pkg/frame"
-	"github.com/suyashkumar/dicom/pkg/tag"
-	"github.com/suyashkumar/dicom/pkg/uid"
+	"github.com/wybaby168/dicom/pkg/charset"
+	"github.com/wybaby168/dicom/pkg/debug"
+	"github.com/wybaby168/dicom/pkg/dicomio"
+	"github.com/wybaby168/dicom/pkg/frame"
+	"github.com/wybaby168/dicom/pkg/tag"
+	"github.com/wybaby168/dicom/pkg/uid"
 )
 
 const (
@@ -213,7 +213,7 @@ func NewParser(in io.Reader, bytesToRead int64, frameChannel chan *frame.Frame, 
 			return &p, nil
 		}
 	}
-	// TODO(https://github.com/suyashkumar/dicom/issues/329): consider trying
+	// TODO(https://github.com/wybaby168/dicom/issues/329): consider trying
 	// deflated parsing as a fallback as well.
 	return &p, errors.New("dicom missing transfer syntax uid in metadata, and it was not possible to successfully infer it using the next 100 bytes of the dicom")
 }

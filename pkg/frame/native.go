@@ -63,7 +63,7 @@ type NativeFrame[I constraints.Integer] struct {
 	// and so on in this flattened array.
 	// A flattened slice is used instead of a nested 2D slice because there is
 	// significant overhead to creating nested slices in Go discussed here:
-	// https://github.com/suyashkumar/dicom/issues/161#issuecomment-2143627792.
+	// https://github.com/wybaby168/dicom/issues/161#issuecomment-2143627792.
 	RawData                 []I
 	InternalSamplesPerPixel int
 	InternalRows            int

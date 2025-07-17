@@ -9,7 +9,7 @@ import (
 	"io"
 	"math"
 
-	"github.com/suyashkumar/dicom/pkg/charset"
+	"github.com/wybaby168/dicom/pkg/charset"
 	"golang.org/x/text/encoding"
 )
 
@@ -206,7 +206,7 @@ func (r *Reader) SetTransferSyntax(bo binary.ByteOrder, implicit bool) {
 // limits (if any) will be based on uncompressed bytes.
 func (r *Reader) SetDeflate() {
 	r.in = bufio.NewReader(flate.NewReader(r.in))
-	// TODO(https://github.com/suyashkumar/dicom/issues/320): consider always
+	// TODO(https://github.com/wybaby168/dicom/issues/320): consider always
 	// having the top level limit read until EOF.
 	r.limit = LimitReadUntilEOF // needed because original limits may not apply to the deflated *Reader
 }

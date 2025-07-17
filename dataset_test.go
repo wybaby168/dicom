@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/suyashkumar/dicom/pkg/tag"
+	"github.com/wybaby168/dicom/pkg/tag"
 )
 
 func makeSequenceElement(tg tag.Tag, items [][]*Element) *Element {

@@ -1,4 +1,4 @@
-module github.com/suyashkumar/dicom
+module github.com/wybaby168/dicom
 
 go 1.22
 

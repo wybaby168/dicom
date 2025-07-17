@@ -70,6 +70,7 @@ var htmlEncodingNames = map[string]string{
 	"ISO 2022 IR 87":  "iso-2022-jp",
 	"ISO 2022 IR 58":  "iso-ir-58",
 	"ISO_IR 192":      "utf8",
+	"ISO_IR 196":      "utf8",
 	"GB18030":         "gb18030",
 	"GBK":             "gbk",
 }

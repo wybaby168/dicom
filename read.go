@@ -410,17 +410,33 @@ func (r *reader) readNativeFrames(parsedData *Dataset, fc chan<- *frame.Frame, v
 	if err != nil {
 		return nil, 0, fmt.Errorf("readNativeFrames: error finding BitsAllocated tag: %w", err)
 	}
-	bitsAllocated := MustGetInts(b.Value)[0]
+	bitsAllocatedSlice := MustGetInts(b.Value)
+	if len(bitsAllocatedSlice) == 0 {
+		return nil, 0, fmt.Errorf("readNativeFrames: BitsAllocated tag has empty value")
+	}
+	bitsAllocated := bitsAllocatedSlice[0]
 
 	s, err := parsedData.FindElementByTag(tag.SamplesPerPixel)
 	if err != nil {
 		return nil, 0, fmt.Errorf("readNativeFrames: error finding SamplesPerPixel tag: %w", err)
 	}
-	samplesPerPixel := MustGetInts(s.Value)[0]
+	samplesPerPixelSlice := MustGetInts(s.Value)
+	if len(samplesPerPixelSlice) == 0 {
+		return nil, 0, fmt.Errorf("readNativeFrames: SamplesPerPixel tag has empty value")
+	}
+	samplesPerPixel := samplesPerPixelSlice[0]
 
-	pixelsPerFrame := MustGetInts(rows.Value)[0] * MustGetInts(cols.Value)[0]
+	rowsSlice := MustGetInts(rows.Value)
+	if len(rowsSlice) == 0 {
+		return nil, 0, fmt.Errorf("readNativeFrames: Rows tag has empty value")
+	}
+	colsSlice := MustGetInts(cols.Value)
+	if len(colsSlice) == 0 {
+		return nil, 0, fmt.Errorf("readNativeFrames: Columns tag has empty value")
+	}
+	pixelsPerFrame := rowsSlice[0] * colsSlice[0]
 
-	debug.Logf("readNativeFrames:\nRows: %d\nCols:%d\nFrames::%d\nBitsAlloc:%d\nSamplesPerPixel:%d", MustGetInts(rows.Value)[0], MustGetInts(cols.Value)[0], nFrames, bitsAllocated, samplesPerPixel)
+	debug.Logf("readNativeFrames:\nRows: %d\nCols:%d\nFrames::%d\nBitsAlloc:%d\nSamplesPerPixel:%d", rowsSlice[0], colsSlice[0], nFrames, bitsAllocated, samplesPerPixel)
 
 	bytesAllocated := bitsAllocated / 8
 	bytesToRead = bytesAllocated * samplesPerPixel * pixelsPerFrame * nFrames

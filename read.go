@@ -895,7 +895,14 @@ func (r *reader) readElement(d *Dataset, fc chan<- *frame.Frame) (*Element, erro
 
 	val, err := r.readValue(*t, vr, vl, readImplicit, d, fc)
 	if err != nil {
-		return nil, fmt.Errorf("readElement: error when reading value for element %v: %w", t, err)
+		// 检查是否是 unexpected EOF 错误
+		if err == io.EOF {
+			log.Printf("Warning: unexpected EOF when reading value for element %v, setting empty value", t)
+			// 根据 VR 类型创建适当的空值
+			val = r.createEmptyValueForTag(*t, vr)
+		} else {
+			return nil, fmt.Errorf("readElement: error when reading value for element %v: %w", t, err)
+		}
 	}
 
 	return &Element{Tag: *t, ValueRepresentation: tag.GetVRKind(*t, vr), RawValueRepresentation: vr, ValueLength: vl, Value: val}, nil
@@ -955,4 +962,36 @@ func (r *reader) readRawItem(shouldSkip bool) ([]byte, bool, error) {
 // moreToRead returns true if there is more to read from the underlying dicom.
 func (r *reader) moreToRead() bool {
 	return !r.rawReader.IsLimitExhausted()
+}
+
+// createEmptyValueForTag creates an appropriate empty value for a given tag and VR.
+// This is used when encountering unexpected EOF errors to provide a fallback value.
+func (r *reader) createEmptyValueForTag(t tag.Tag, vr string) Value {
+	vrkind := tag.GetVRKind(t, vr)
+
+	switch vrkind {
+	case tag.VRBytes:
+		return &bytesValue{value: []byte{}}
+	case tag.VRString:
+		return &stringsValue{value: []string{""}}
+	case tag.VRDate:
+		return &stringsValue{value: []string{""}}
+	case tag.VRUInt16List, tag.VRUInt32List, tag.VRInt16List, tag.VRInt32List, tag.VRTagList:
+		return &intsValue{value: []int{}}
+	case tag.VRSequence:
+		return &sequencesValue{value: []*SequenceItemValue{}}
+	case tag.VRItem:
+		return &SequenceItemValue{elements: []*Element{}}
+	case tag.VRPixelData:
+		return &pixelDataValue{PixelDataInfo: PixelDataInfo{Frames: []*frame.Frame{}}}
+	case tag.VRFloat32List, tag.VRFloat64List:
+		return &floatsValue{value: []float64{}}
+	case tag.VRUnknown:
+		// 对于未知 VR，尝试根据 VL 是否为 undefined length 来决定
+		// 这里我们默认返回空字节值
+		return &bytesValue{value: []byte{}}
+	default:
+		// 默认返回空字符串值
+		return &stringsValue{value: []string{""}}
+	}
 }

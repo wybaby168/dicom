@@ -750,6 +750,11 @@ func (r *reader) readString(t tag.Tag, vr string, vl uint32) (Value, error) {
 }
 
 func (r *reader) readFloat(t tag.Tag, vr string, vl uint32) (Value, error) {
+	if vl == 0 {
+		log.Printf("Warning: float element (%v) has zero length, returning empty value", t)
+		return &floatsValue{value: []float64{}}, nil
+	}
+
 	err := r.rawReader.PushLimit(int64(vl))
 	if err != nil {
 		return nil, err
@@ -760,6 +765,11 @@ func (r *reader) readFloat(t tag.Tag, vr string, vl uint32) (Value, error) {
 		case vrraw.FloatingPointSingle:
 			val, err := r.rawReader.ReadFloat32()
 			if err != nil {
+				if err == io.EOF {
+					log.Printf("Warning: unexpected EOF reading float32 element (%v), using 0 value", t)
+					retVal.value = append(retVal.value, 0.0)
+					break
+				}
 				return nil, fmt.Errorf("error reading floating point element (%v) value: %w", t, err)
 			}
 			// TODO(suyashkumar): revisit this hack to prevent some internal representation issues upconverting from
@@ -774,6 +784,11 @@ func (r *reader) readFloat(t tag.Tag, vr string, vl uint32) (Value, error) {
 		case vrraw.FloatingPointDouble:
 			val, err := r.rawReader.ReadFloat64()
 			if err != nil {
+				if err == io.EOF {
+					log.Printf("Warning: unexpected EOF reading float64 element (%v), using 0 value", t)
+					retVal.value = append(retVal.value, 0.0)
+					break
+				}
 				return nil, fmt.Errorf("error reading floating point element (%v) value: %w", t, err)
 			}
 			retVal.value = append(retVal.value, val)
@@ -783,6 +798,12 @@ func (r *reader) readFloat(t tag.Tag, vr string, vl uint32) (Value, error) {
 		}
 	}
 	r.rawReader.PopLimit()
+
+	if len(retVal.value) == 0 {
+		log.Printf("Warning: float element (%v) read no values, returning single 0 value", t)
+		retVal.value = append(retVal.value, 0.0)
+	}
+
 	return retVal, nil
 }
 

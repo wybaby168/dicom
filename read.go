@@ -614,15 +614,10 @@ func (r *reader) readSequence(t tag.Tag, vr string, vl uint32, d *Dataset) (Valu
 				// Stop reading
 				break
 			}
-			if subElement.Tag != tag.Item || subElement.Value.ValueType() != SequenceItem {
-				// This is an error, should be an Item!
-				// TODO: use error var
-				log.Println("Tag is ", subElement.Tag)
-				return nil, fmt.Errorf("readSequence: error, non item element found in sequence. got: %v", subElement)
-			}
-
 			// Append the Item element's dataset of elements to this Sequence's sequencesValue.
-			sequences.value = append(sequences.value, subElement.Value.(*SequenceItemValue))
+			if err := appendSequenceItem(&sequences, subElement); err != nil {
+				return nil, err
+			}
 		}
 	} else {
 		// Sequence of elements for a total of VL bytes
@@ -638,12 +633,31 @@ func (r *reader) readSequence(t tag.Tag, vr string, vl uint32, d *Dataset) (Valu
 			}
 
 			// Append the Item element's dataset of elements to this Sequence's sequencesValue.
-			sequences.value = append(sequences.value, subElement.Value.(*SequenceItemValue))
+			if err := appendSequenceItem(&sequences, subElement); err != nil {
+				return nil, err
+			}
 		}
 		r.rawReader.PopLimit()
 	}
 
 	return &sequences, nil
+}
+
+func appendSequenceItem(sequences *sequencesValue, subElement *Element) error {
+	if subElement.Tag != tag.Item {
+		// This is an error, should be an Item!
+		// TODO: use error var
+		return fmt.Errorf("readSequence: error, non item element found in sequence. got tag: %v", subElement.Tag)
+	}
+
+	seqItem, ok := subElement.Value.(*SequenceItemValue)
+	if !ok {
+		return fmt.Errorf("readSequence: error, expected sequence item value but got %T", subElement.Value)
+	}
+
+	// Append the Item element's dataset of elements to this Sequence's sequencesValue.
+	sequences.value = append(sequences.value, seqItem)
+	return nil
 }
 
 // readSequenceItem reads an item component of a sequence dicom element and returns an Element

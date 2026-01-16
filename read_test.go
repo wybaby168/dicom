@@ -990,6 +990,89 @@ func TestReadNativeFrames_OneBitAllocated(t *testing.T) {
 	}
 }
 
+func TestReadElement_UnexpectedEOFInValue_SetsEmptyAndContinues(t *testing.T) {
+	buf := bytes.Buffer{}
+
+	mustWrite := func(data any) {
+		t.Helper()
+		if err := binary.Write(&buf, binary.LittleEndian, data); err != nil {
+			t.Fatalf("binary.Write failed: %v", err)
+		}
+	}
+
+	sequenceVL := uint32(18)
+	itemVL := uint32(10)
+
+	mustWrite(uint16(0x0008))
+	mustWrite(uint16(0x1111))
+	_, _ = buf.WriteString("SQ")
+	mustWrite(uint16(0))
+	mustWrite(sequenceVL)
+
+	mustWrite(uint16(0xfffe))
+	mustWrite(uint16(0xe000))
+	mustWrite(itemVL)
+
+	mustWrite(uint16(tag.PatientName.Group))
+	mustWrite(uint16(tag.PatientName.Element))
+	_, _ = buf.WriteString("PN")
+	mustWrite(uint16(4))
+	_, _ = buf.Write([]byte("AB"))
+
+	mustWrite(uint16(tag.PatientID.Group))
+	mustWrite(uint16(tag.PatientID.Element))
+	_, _ = buf.WriteString("LO")
+	mustWrite(uint16(2))
+	_, _ = buf.Write([]byte("ZZ"))
+
+	rawReader := dicomio.NewReader(bufio.NewReader(&buf), binary.LittleEndian, int64(buf.Len()))
+	rawReader.SetTransferSyntax(binary.LittleEndian, false)
+	r := &reader{rawReader: rawReader}
+
+	ds := Dataset{}
+	seqElem, err := r.readElement(&ds, nil)
+	if err != nil {
+		t.Fatalf("readElement(seq) unexpected error: %v", err)
+	}
+	nextElem, err := r.readElement(&ds, nil)
+	if err != nil {
+		t.Fatalf("readElement(next) unexpected error: %v", err)
+	}
+
+	if seqElem.Tag != (tag.Tag{Group: 0x0008, Element: 0x1111}) {
+		t.Fatalf("unexpected seq tag: %v", seqElem.Tag)
+	}
+	if nextElem.Tag != tag.PatientID {
+		t.Fatalf("unexpected next tag: %v", nextElem.Tag)
+	}
+
+	seqVal, ok := seqElem.Value.(*sequencesValue)
+	if !ok {
+		t.Fatalf("unexpected seq value type: %T", seqElem.Value)
+	}
+	if len(seqVal.value) != 1 {
+		t.Fatalf("unexpected sequence item count: %d", len(seqVal.value))
+	}
+	if len(seqVal.value[0].elements) != 1 {
+		t.Fatalf("unexpected item element count: %d", len(seqVal.value[0].elements))
+	}
+	inner := seqVal.value[0].elements[0]
+	if inner.Tag != tag.PatientName {
+		t.Fatalf("unexpected inner tag: %v", inner.Tag)
+	}
+
+	innerStr, ok := inner.Value.(*stringsValue)
+	if !ok {
+		t.Fatalf("unexpected inner value type: %T", inner.Value)
+	}
+	if len(innerStr.value) != 1 || innerStr.value[0] != "AB" {
+		t.Fatalf("unexpected inner value: %#v", innerStr.value)
+	}
+	if len(r.warnings) != 1 {
+		t.Fatalf("unexpected warnings count: %d", len(r.warnings))
+	}
+}
+
 func BenchmarkReadNativeFrames(b *testing.B) {
 	cases := []struct {
 		Name            string

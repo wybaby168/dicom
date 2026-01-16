@@ -142,8 +142,15 @@ func internalReadString(data []byte, d *encoding.Decoder) (string, error) {
 // ReadString reads a string from the underlying *Reader.
 func (r *Reader) ReadString(n uint32) (string, error) {
 	data := make([]byte, n)
-	_, err := io.ReadFull(r, data)
+	nread, err := io.ReadFull(r, data)
 	if err != nil {
+		if (errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)) && nread > 0 {
+			s, derr := internalReadString(data[:nread], r.cs.Ideographic)
+			if derr != nil {
+				return string(data[:nread]), err
+			}
+			return s, err
+		}
 		return "", err
 	}
 	return internalReadString(data, r.cs.Ideographic)

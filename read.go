@@ -44,7 +44,24 @@ var (
 type reader struct {
 	rawReader *dicomio.Reader
 	opts      parseOptSet
+	warnings  []error
 }
+
+func isEOFLike(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
+}
+
+type ElementValueReadWarning struct {
+	Tag   tag.Tag
+	VR    string
+	Cause error
+}
+
+func (e *ElementValueReadWarning) Error() string {
+	return fmt.Sprintf("readElement: value read warning for element %v (vr=%s): %v", e.Tag, e.VR, e.Cause)
+}
+
+func (e *ElementValueReadWarning) Unwrap() error { return e.Cause }
 
 func (r *reader) readTag() (*tag.Tag, error) {
 	group, gerr := r.rawReader.ReadUInt16()
@@ -711,7 +728,10 @@ func (r *reader) readBytes(t tag.Tag, vr string, vl uint32) (Value, error) {
 	// TODO: add special handling of PixelData
 	if vr == vrraw.OtherByte || vr == vrraw.Unknown {
 		data := make([]byte, vl)
-		_, err := io.ReadFull(r.rawReader, data)
+		nread, err := io.ReadFull(r.rawReader, data)
+		if err != nil && isEOFLike(err) && nread > 0 {
+			data = data[:nread]
+		}
 		return &bytesValue{value: data}, err
 	} else if vr == vrraw.OtherWord {
 		// OW -> stream of 16 bit words
@@ -744,7 +764,7 @@ func (r *reader) readString(t tag.Tag, vr string, vl uint32) (Value, error) {
 	}
 
 	str, err := r.rawReader.ReadString(vl)
-	if err != nil {
+	if err != nil && !isEOFLike(err) {
 		return nil, fmt.Errorf("error reading string element (%v) value: %w", t, err)
 	}
 	onlySpaces := true
@@ -760,6 +780,9 @@ func (r *reader) readString(t tag.Tag, vr string, vl uint32) (Value, error) {
 
 	// Split multiple strings
 	strs := strings.Split(str, "\\")
+	if err != nil {
+		return &stringsValue{value: strs}, err
+	}
 	return &stringsValue{value: strs}, nil
 }
 
@@ -779,8 +802,9 @@ func (r *reader) readFloat(t tag.Tag, vr string, vl uint32) (Value, error) {
 		case vrraw.FloatingPointSingle:
 			val, err := r.rawReader.ReadFloat32()
 			if err != nil {
-				if err == io.EOF {
+				if isEOFLike(err) {
 					log.Printf("Warning: unexpected EOF reading float32 element (%v), using 0 value", t)
+					r.warnings = append(r.warnings, &ElementValueReadWarning{Tag: t, VR: vr, Cause: err})
 					retVal.value = append(retVal.value, 0.0)
 					break
 				}
@@ -798,8 +822,9 @@ func (r *reader) readFloat(t tag.Tag, vr string, vl uint32) (Value, error) {
 		case vrraw.FloatingPointDouble:
 			val, err := r.rawReader.ReadFloat64()
 			if err != nil {
-				if err == io.EOF {
+				if isEOFLike(err) {
 					log.Printf("Warning: unexpected EOF reading float64 element (%v), using 0 value", t)
+					r.warnings = append(r.warnings, &ElementValueReadWarning{Tag: t, VR: vr, Cause: err})
 					retVal.value = append(retVal.value, 0.0)
 					break
 				}
@@ -909,11 +934,12 @@ func (r *reader) readElement(d *Dataset, fc chan<- *frame.Frame) (*Element, erro
 
 	val, err := r.readValue(*t, vr, vl, readImplicit, d, fc)
 	if err != nil {
-		// 检查是否是 unexpected EOF 错误
-		if err == io.EOF {
+		if isEOFLike(err) {
 			log.Printf("Warning: unexpected EOF when reading value for element %v, setting empty value", t)
-			// 根据 VR 类型创建适当的空值
-			val = r.createEmptyValueForTag(*t, vr)
+			r.warnings = append(r.warnings, &ElementValueReadWarning{Tag: *t, VR: vr, Cause: err})
+			if val == nil {
+				val = r.createEmptyValueForTag(*t, vr)
+			}
 		} else {
 			return nil, fmt.Errorf("readElement: error when reading value for element %v: %w", t, err)
 		}

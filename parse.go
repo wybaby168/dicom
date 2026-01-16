@@ -57,6 +57,16 @@ var (
 	ErrorMismatchPixelDataLength = errors.New("the size calculated from DICOM elements and the PixelData element's VL are mismatched")
 )
 
+type ParseWarningsError struct {
+	Warnings []error
+}
+
+func (e *ParseWarningsError) Error() string {
+	return fmt.Sprintf("dicom parse completed with %d warning(s)", len(e.Warnings))
+}
+
+func (e *ParseWarningsError) Unwrap() []error { return e.Warnings }
+
 func Parse(in io.Reader, bytesToRead int64, frameChan chan *frame.Frame, opts ...ParseOption) (Dataset, error) {
 	return parseInternal(in, bytesToRead, frameChan, opts...)
 }
@@ -91,6 +101,9 @@ func parseInternal(in io.Reader, bytesToRead int64, frameChan chan *frame.Frame,
 	if p.frameChannel != nil {
 		close(p.frameChannel)
 	}
+	if len(p.reader.warnings) > 0 {
+		return p.dataset, &ParseWarningsError{Warnings: append([]error(nil), p.reader.warnings...)}
+	}
 	return p.dataset, nil
 }
 
@@ -121,6 +134,10 @@ type Parser struct {
 	// file is optional, might be populated if reading from an underlying file
 	file         *os.File
 	frameChannel chan *frame.Frame
+}
+
+func (p *Parser) Warnings() []error {
+	return append([]error(nil), p.reader.warnings...)
 }
 
 // NewParser returns a new Parser that points to the provided io.Reader, with bytesToRead bytes left to read. NewParser
@@ -229,7 +246,7 @@ func canReadElementFromBytes(buf []byte, optSet parseOptSet, bo binary.ByteOrder
 	}
 	subR.rawReader.SetTransferSyntax(bo, implicit)
 	_, err := subR.readElement(nil, nil)
-	if err == nil {
+	if err == nil && len(subR.warnings) == 0 {
 		return true
 	}
 	return false
